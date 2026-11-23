@@ -1,0 +1,26 @@
+name: Boletim diário
+
+on:
+  schedule:
+    - cron: "0 11 * * 1-5"   # 11h UTC = 8h em Brasília, seg a sex
+  workflow_dispatch:          # botão para rodar na mão
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt
+      - run: python src/main.py
+        env:
+          BOLETIM_REMETENTE: ${{ secrets.BOLETIM_REMETENTE }}
+          BOLETIM_SENHA: ${{ secrets.BOLETIM_SENHA }}
+          BOLETIM_DESTINO: ${{ secrets.BOLETIM_DESTINO }}
+
+#on define quando roda. O cron tem 5 campos: minuto, hora, dia, mês e dia da semana. 1-5 é de segunda a sexta. A hora é UTC, então 8h de Brasília vira 11. Quer outro horário? É só me falar.
+#checkout baixa o seu repositório, e setup-python instala o Python.
+#env entrega os Secrets ao programa. Na nuvem não existe .env, e o load_dotenv() simplesmente não faz nada lá.
+#No YAML, a indentação importa: use espaços, nunca Tab.
