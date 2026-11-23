@@ -1,13 +1,39 @@
 import requests
+from urllib.parse import urlencode, quote
 
-url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json"
-resposta = requests.get(url)       # faz o pedido, como o navegador
-dados = resposta.json()            # converte o texto JSON em lista/dicionário Python
+def buscar_sgs(codigo):
+    """Busca a última observação de uma série do SGS."""
+    url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados/ultimos/1?formato=json"
+    resposta = requests.get(url, timeout=30)
+    resposta.raise_for_status()          # se a API falhar, para aqui com um erro claro
+    ultimo = resposta.json()[0]
+    return ultimo["data"], float(ultimo["valor"])
 
-print(dados)                       # olhe o formato cru primeiro
+def buscar_focus(indicador, ano):
+    """Mediana mais recente do Focus para um indicador e um ano."""
+    url = "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoAnuais"
+    params = {
+        "$filter": f"Indicador eq '{indicador}' and DataReferencia eq '{ano}' and baseCalculo eq 0",
+        "$orderby": "Data desc",
+        "$top": 1,
+        "$format": "json",
+    }
+    resposta = requests.get(url + "?" + urlencode(params, quote_via=quote), timeout=30)
+    resposta.raise_for_status()
+    ultimo = resposta.json()["value"][0]
+    return ultimo["Data"], ultimo["Mediana"]
 
-ultimo = dados[0]                # pegue o primeiro item da lista
-selic = float(ultimo["valor"])         # pegue o valor e converta para número
+series = {
+    "Meta Selic (% a.a.)": 432,
+    "IPCA mensal (%)": 433,
+    "IPCA 12 meses (%)": 13522,
+    "Dólar PTAX venda (R$)": 1,
+}
 
-print(f"Meta Selic em {ultimo['data']}: {selic:.2f}% a.a.")
-
+for nome, codigo in series.items():
+    data, valor = buscar_sgs(codigo)
+    print(f"{nome}: {valor:.2f} em {data}")
+    
+for indicador in ["IPCA", "Selic"]:
+    data, mediana = buscar_focus(indicador, 2027)
+    print(f"Focus {indicador} 2027: {mediana:.2f} (pesquisa de {data})")
