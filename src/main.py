@@ -1,13 +1,14 @@
-import requests
+from datetime import date
 from urllib.parse import urlencode, quote
+import requests
 
 def buscar_sgs(codigo):
-    """Busca a última observação de uma série do SGS."""
-    url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados/ultimos/1?formato=json"
+    """Últimas 2 observações de uma série do SGS: data, valor atual e anterior."""
+    url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados/ultimos/2?formato=json"
     resposta = requests.get(url, timeout=30)
-    resposta.raise_for_status()          # se a API falhar, para aqui com um erro claro
-    ultimo = resposta.json()[0]
-    return ultimo["data"], float(ultimo["valor"])
+    resposta.raise_for_status()
+    anterior, atual = resposta.json()        # a lista vem em ordem: mais antiga primeiro
+    return atual["data"], float(atual["valor"]), float(anterior["valor"])
 
 def buscar_focus(indicador, ano):
     """Mediana mais recente do Focus para um indicador e um ano."""
@@ -23,17 +24,27 @@ def buscar_focus(indicador, ano):
     ultimo = resposta.json()["value"][0]
     return ultimo["Data"], ultimo["Mediana"]
 
-series = {
-    "Meta Selic (% a.a.)": 432,
-    "IPCA mensal (%)": 433,
-    "IPCA 12 meses (%)": 13522,
-    "Dólar PTAX venda (R$)": 1,
-}
+def montar_mensagem():
+    series = {
+        "Meta Selic (% a.a.)": 432,
+        "IPCA mensal (%)": 433,
+        "IPCA 12 meses (%)": 13522,
+        "Dólar PTAX (R$)": 1,
+    }
+    linhas = [f"Boletim Macro do Guigas | {date.today():%d/%m/%Y}", ""]
 
-for nome, codigo in series.items():
-    data, valor = buscar_sgs(codigo)
-    print(f"{nome}: {valor:.2f} em {data}")
-    
-for indicador in ["IPCA", "Selic"]:
-    data, mediana = buscar_focus(indicador, 2027)
-    print(f"Focus {indicador} 2027: {mediana:.2f} (pesquisa de {data})")
+    for nome, codigo in series.items():
+        data, valor, anterior = buscar_sgs(codigo)
+        variacao = valor - anterior
+        linhas.append(f"{nome}: {valor:.2f} ({variacao:+.2f}) em {data}")
+
+    linhas.append("")
+    linhas.append("Focus, mediana para 2027:")
+    for indicador in ["IPCA", "Selic"]:
+        data, mediana = buscar_focus(indicador, 2027)
+        linhas.append(f"{indicador}: {mediana:.2f}")
+
+    return "\n".join(linhas)
+
+mensagem = montar_mensagem()
+print(mensagem)
