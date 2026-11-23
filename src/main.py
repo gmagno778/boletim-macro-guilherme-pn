@@ -1,6 +1,9 @@
 from datetime import date
 from urllib.parse import urlencode, quote
 import requests
+import os
+import smtplib
+from email.message import EmailMessage
 
 def buscar_sgs(codigo):
     """Últimas 2 observações de uma série do SGS: data, valor atual e anterior."""
@@ -46,5 +49,23 @@ def montar_mensagem():
 
     return "\n".join(linhas)
 
-mensagem = montar_mensagem()
-print(mensagem)
+def enviar_email(texto):
+    """Envia o boletim pelo Gmail usando a senha de app."""
+    remetente = os.environ["BOLETIM_REMETENTE"]
+    senha = os.environ["BOLETIM_SENHA"]
+    destino = os.environ["BOLETIM_DESTINO"]
+
+    msg = EmailMessage()
+    msg["Subject"] = f"Boletim Macro do Guigas | {date.today():%d/%m/%Y}"
+    msg["From"] = remetente
+    msg["To"] = destino
+    msg.set_content(texto)
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
+        servidor.login(remetente, senha)
+        servidor.send_message(msg)
+        
+texto = montar_mensagem()
+print(texto)
+enviar_email(texto)
+print("E-mail enviado!")
