@@ -4,6 +4,8 @@ import requests
 import os
 import smtplib
 from email.message import EmailMessage
+from dotenv import load_dotenv
+load_dotenv()
 
 def buscar_sgs(codigo):
     """Últimas 2 observações de uma série do SGS: data, valor atual e anterior."""
