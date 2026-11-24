@@ -67,7 +67,14 @@ def enviar_email(texto):
         servidor.login(remetente, senha)
         servidor.send_message(msg)
         
-texto = montar_mensagem()
+try:
+    texto = montar_mensagem()
+except Exception as erro:
+    texto = f"O boletim de hoje falhou ao buscar os dados.\n\nErro: {erro}"
+
+print(texto)
+enviar_email(texto)
+print("E-mail enviado!")
 print(texto)
 enviar_email(texto)
 print("E-mail enviado!")
