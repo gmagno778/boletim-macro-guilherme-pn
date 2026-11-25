@@ -9,6 +9,8 @@ import sys
 import holidays
 import random
 from pathlib import Path
+import html
+from email.utils import make_msgid
 load_dotenv()
 
 def buscar_sgs(codigo):
@@ -108,8 +110,54 @@ def montar_mensagem():
 
     return "\n".join(linhas)
 
-def enviar_email(texto):
-    """Envia o boletim pelo Gmail usando a senha de app."""
+def montar_html(texto, cid_onda):
+    linhas = texto.split("\n")
+    titulo = linhas[0]
+    corpo = []
+    for linha in linhas[1:]:
+        linha = html.escape(linha)          # troca < > & por códigos seguros
+        if linha == "":
+            corpo.append('<tr><td style="height:12px"></td></tr>')
+        elif linha.endswith(":"):           # títulos de bloco, ex.: "Focus, mediana para 2027:"
+            corpo.append(
+                '<tr><td style="padding:8px 24px 2px; font-weight:bold; color:#0b3d5c;">'
+                f"{linha}</td></tr>"
+            )
+        elif linha.startswith("&quot;"):    # a frase do dia (começa com aspas)
+            corpo.append(
+                '<tr><td style="padding:4px 24px; font-style:italic; color:#4a6b7c;">'
+                f"{linha}</td></tr>"
+            )
+        else:
+            corpo.append(
+                f'<tr><td style="padding:2px 24px; color:#1c2b33;">{linha}</td></tr>'
+            )
+
+    return f"""\
+<html>
+  <body style="margin:0; padding:0; background:#e9f1f5;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#e9f1f5;">
+      <tr><td align="center" style="padding:16px 0;">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff; font-family:Arial, sans-serif; font-size:15px;">
+          <tr><td style="background:#0b3d5c; padding:20px 24px; color:#ffffff;
+                         font-size:20px; font-weight:bold;">{html.escape(titulo)}</td></tr>
+          <tr><td style="line-height:0;">
+            <img src="cid:{cid_onda}" width="600" height="110" alt="onda" style="display:block;">
+          </td></tr>
+          {"".join(corpo)}
+          <tr><td style="height:20px"></td></tr>
+          <tr><td style="background:#f3e9d2; padding:12px 24px; color:#7a6a4f; font-size:12px;">
+            Dados: Banco Central (SGS e Focus) e brapi.dev
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>"""
+
+
+def enviar_email(texto, com_html=True):
     remetente = os.environ["BOLETIM_REMETENTE"]
     senha = os.environ["BOLETIM_SENHA"]
     destino = os.environ["BOLETIM_DESTINO"]
@@ -120,10 +168,18 @@ def enviar_email(texto):
     msg["To"] = destino
     msg.set_content(texto)
 
+    if com_html:
+        cid = make_msgid(domain="boletim")
+        msg.add_alternative(montar_html(texto, cid[1:-1]), subtype="html")
+        gif = Path(__file__).parent.parent / "img" / "onda.gif"
+        msg.get_payload()[1].add_related(
+            gif.read_bytes(), maintype="image", subtype="gif", cid=cid
+        )
+
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
         servidor.login(remetente, senha)
         servidor.send_message(msg)
-        
+                
 hoje = date.today()
 feriados = holidays.financial_holidays("BVMF")
 if hoje in feriados:
