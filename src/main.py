@@ -12,7 +12,11 @@ def buscar_sgs(codigo):
     url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados/ultimos/2?formato=json"
     resposta = requests.get(url, timeout=30)
     resposta.raise_for_status()
-    anterior, atual = resposta.json()        # a lista vem em ordem: mais antiga primeiro
+    try:
+        dados = resposta.json()
+    except ValueError:
+        raise ValueError(f"SGS {codigo} não devolveu JSON: {resposta.text[:80]!r}")
+    anterior, atual = dados       
     return atual["data"], float(atual["valor"]), float(anterior["valor"])
 
 def buscar_focus(indicador, ano):
@@ -37,17 +41,34 @@ def montar_mensagem():
         "Dólar PTAX (R$)": 1,
     }
     linhas = [f"Boletim Macro do Guigas | {date.today():%d/%m/%Y}", ""]
+    falhas = []
 
     for nome, codigo in series.items():
-        data, valor, anterior = buscar_sgs(codigo)
+        try:
+            data, valor, anterior = buscar_sgs(codigo)
+        except Exception as erro:
+            linhas.append(f"{nome}: indisponível hoje")
+            falhas.append(f"{nome} (SGS {codigo}): {erro}")
+            continue
         variacao = valor - anterior
         linhas.append(f"{nome}: {valor:.2f} ({variacao:+.2f}) em {data}")
 
     linhas.append("")
     linhas.append("Focus, mediana para 2027:")
     for indicador in ["IPCA", "Selic"]:
-        data, mediana = buscar_focus(indicador, 2027)
+        try:
+            data, mediana = buscar_focus(indicador, 2027)
+        except Exception as erro:
+            linhas.append(f"{indicador}: indisponível hoje")
+            falhas.append(f"Focus {indicador}: {erro}")
+            continue
         linhas.append(f"{indicador}: {mediana:.2f}")
+
+    if falhas:
+        linhas.append("")
+        linhas.append("Avisos técnicos:")
+        for falha in falhas:
+            linhas.append(f"- {falha}")
 
     return "\n".join(linhas)
 
@@ -72,9 +93,6 @@ try:
 except Exception as erro:
     texto = f"O boletim de hoje falhou ao buscar os dados.\n\nErro: {erro}"
 
-print(texto)
-enviar_email(texto)
-print("E-mail enviado!")
 print(texto)
 enviar_email(texto)
 print("E-mail enviado!")
