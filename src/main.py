@@ -1,22 +1,28 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlencode, quote
 import requests
 import os
 import smtplib
 from email.message import EmailMessage
 from dotenv import load_dotenv
+import sys
+import holidays
 load_dotenv()
 
 def buscar_sgs(codigo):
-    """Últimas 2 observações de uma série do SGS: data, valor atual e anterior."""
-    url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados/ultimos/2?formato=json"
+    hoje = date.today()
+    inicio = hoje - timedelta(days=120)
+    url = (
+        f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados"
+        f"?formato=json&dataInicial={inicio:%d/%m/%Y}&dataFinal={hoje:%d/%m/%Y}"
+    )
     resposta = requests.get(url, timeout=30)
     resposta.raise_for_status()
     try:
         dados = resposta.json()
     except ValueError:
         raise ValueError(f"SGS {codigo} não devolveu JSON: {resposta.text[:80]!r}")
-    anterior, atual = dados       
+    anterior, atual = dados[-2], dados[-1]
     return atual["data"], float(atual["valor"]), float(anterior["valor"])
 
 def buscar_focus(indicador, ano):
@@ -32,6 +38,17 @@ def buscar_focus(indicador, ano):
     resposta.raise_for_status()
     ultimo = resposta.json()["value"][0]
     return ultimo["Data"], ultimo["Mediana"]
+
+def buscar_ibovespa():
+    token = os.environ["BRAPI_TOKEN"]
+    url = "https://brapi.dev/api/quote/%5EBVSP"
+    cabecalho = {"Authorization": f"Bearer {token}"}
+    resposta = requests.get(url, headers=cabecalho, timeout=30)
+    resposta.raise_for_status()
+    cotacao = resposta.json()["results"][0]
+    return (cotacao["regularMarketTime"],
+            cotacao["regularMarketPrice"],
+            cotacao["regularMarketChangePercent"])
 
 def montar_mensagem():
     series = {
@@ -52,6 +69,17 @@ def montar_mensagem():
             continue
         variacao = valor - anterior
         linhas.append(f"{nome}: {valor:.2f} ({variacao:+.2f}) em {data}")
+
+    try:
+        data, pontos, var_pct = buscar_ibovespa()
+    except Exception as erro:
+        linhas.append("Ibovespa: indisponível hoje")
+        falhas.append(f"Ibovespa (brapi): {erro}")
+    else:
+        brasilia = timezone(timedelta(hours=-3))
+        momento = datetime.fromisoformat(data).astimezone(brasilia)
+        pontos_br = f"{pontos:,.0f}".replace(",", ".")
+        linhas.append(f"Ibovespa (pts): {pontos_br} ({var_pct:+.2f}%) em {momento:%d/%m/%Y %Hh%M}")
 
     linhas.append("")
     linhas.append("Focus, mediana para 2027:")
@@ -88,6 +116,12 @@ def enviar_email(texto):
         servidor.login(remetente, senha)
         servidor.send_message(msg)
         
+hoje = date.today()
+feriados = holidays.financial_holidays("BVMF")
+if hoje in feriados:
+    print(f"Hoje é feriado na B3 ({feriados.get(hoje)}). Sem boletim.")
+    sys.exit()
+            
 try:
     texto = montar_mensagem()
 except Exception as erro:
