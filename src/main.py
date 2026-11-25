@@ -7,6 +7,8 @@ from email.message import EmailMessage
 from dotenv import load_dotenv
 import sys
 import holidays
+import random
+from pathlib import Path
 load_dotenv()
 
 def buscar_sgs(codigo):
@@ -49,6 +51,12 @@ def buscar_ibovespa():
     return (cotacao["regularMarketTime"],
             cotacao["regularMarketPrice"],
             cotacao["regularMarketChangePercent"])
+    
+def frase_do_dia():
+    arquivo = Path(__file__).parent.parent / "frases.txt"
+    linhas = arquivo.read_text(encoding="utf-8").splitlines()
+    frases = [l.strip() for l in linhas if l.strip()]
+    return random.choice(frases)    
 
 def montar_mensagem():
     series = {
@@ -57,7 +65,7 @@ def montar_mensagem():
         "IPCA 12 meses (%)": 13522,
         "Dólar PTAX (R$)": 1,
     }
-    linhas = [f"Boletim Macro do Guigas | {date.today():%d/%m/%Y}", ""]
+    linhas = [f"Boletim Macro do Guigas | {date.today():%d/%m/%Y}", "", f'"{frase_do_dia()}"', ""]
     falhas = []
 
     for nome, codigo in series.items():
