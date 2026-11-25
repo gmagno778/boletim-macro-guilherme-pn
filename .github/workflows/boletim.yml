@@ -19,6 +19,7 @@ jobs:
           BOLETIM_REMETENTE: ${{ secrets.BOLETIM_REMETENTE }}
           BOLETIM_SENHA: ${{ secrets.BOLETIM_SENHA }}
           BOLETIM_DESTINO: ${{ secrets.BOLETIM_DESTINO }}
+          BRAPI_TOKEN: ${{ secrets.BRAPI_TOKEN }}
 
 #on define quando roda. O cron tem 5 campos: minuto, hora, dia, mês e dia da semana. 1-5 é de segunda a sexta. A hora é UTC, então 8h de Brasília vira 11.
 #checkout baixa o repositório e setup-python instala o Python.
