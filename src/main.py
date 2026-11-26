@@ -60,9 +60,15 @@ def frase_do_dia():
     frases = [l.strip() for l in linhas if l.strip()]
     return random.choice(frases)    
 
+def proxima_copom():
+    arquivo = Path(__file__).parent.parent / "copom.txt"
+    linhas = arquivo.read_text(encoding="utf-8").splitlines()
+    datas = [date.fromisoformat(l.strip()) for l in linhas if l.strip()]
+    futuras = [d for d in datas if d >= date.today()]
+    return min(futuras) if futuras else None
+
 def montar_mensagem():
     series = {
-        "Meta Selic (% a.a.)": 432,
         "IPCA mensal (%)": 433,
         "IPCA 12 meses (%)": 13522,
         "Dólar PTAX (R$)": 1,
@@ -70,6 +76,16 @@ def montar_mensagem():
     linhas = [f"Boletim Macro do Guigas | {date.today():%d/%m/%Y}", "", f'"{frase_do_dia()}"', ""]
     falhas = []
 
+    try:
+        data, valor, anterior = buscar_sgs(432)
+    except Exception as erro:
+        linhas.append("Meta Selic: indisponível hoje")
+        falhas.append(f"Meta Selic (SGS 432): {erro}")
+    else:
+        reuniao = proxima_copom()
+        quando = f"{reuniao:%d/%m/%Y}" if reuniao else "a definir"
+        linhas.append(f"Meta Selic: {valor:.2f}% a.a. | Próxima reunião do Copom: {quando}")
+        
     for nome, codigo in series.items():
         try:
             data, valor, anterior = buscar_sgs(codigo)
